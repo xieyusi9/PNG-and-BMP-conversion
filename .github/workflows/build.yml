@@ -96,13 +96,22 @@ jobs:
       - name: Package macOS .app as ZIP
         run: |
           set -e
-          if [ -d "./png_bmp_converter-macos-arm/png_bmp_converter.app" ]; then
-            zip -r png_bmp_converter-macos-arm.zip png_bmp_converter-macos-arm/png_bmp_converter.app
+          cd ./macos-artifact
+          # Check if Contents directory exists (unwrapped .app structure)
+          if [ -d "Contents" ]; then
+            # Need to reconstruct the .app directory structure
+            mkdir -p png_bmp_converter.app
+            mv Contents png_bmp_converter.app/
+          elif [ -d "png_bmp_converter.app" ]; then
+            # Already has correct structure
+            true
           else
-            echo "mac .app not found in ./macos-artifact"
-            ls -la macos-artifact/
+            echo "mac .app not found"
+            ls -la
             exit 1
           fi
+          cd ..
+          zip -r png_bmp_converter-macos-arm.zip macos-artifact/png_bmp_converter.app
       - name: Upload macOS asset to release
         uses: actions/upload-release-asset@v1
         env:
