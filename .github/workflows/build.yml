@@ -38,17 +38,42 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
-      - name: Install dependencies
+      - name: Install Rosetta (for x86_64 build)
+        run: |
+          sudo softwareupdate --install-rosetta --agree-to-license || true
+
+      - name: Build ARM64 .app (native)
         run: |
           python3 -m pip install --upgrade pip
-          pip3 install -r requirements.txt
-          pip3 install pyinstaller
-      - name: Build with PyInstaller (macOS)
-        run: |
-          # Build an macOS .app bundle (windowed) to avoid spawning a Terminal window when launched
+          python3 -m pip install -r requirements.txt pyinstaller
           pyinstaller --windowed --name png_bmp_converter converter_gui.py
-      - name: Upload macOS artifact
+          mv dist/png_bmp_converter.app dist/png_bmp_converter-arm.app
+
+      - name: Build x86_64 .app (Rosetta)
+        run: |
+          # Use Rosetta translation to run pip/pyinstaller in x86_64 mode and produce x86 binary
+          arch -x86_64 python3 -m pip install --upgrade pip
+          arch -x86_64 python3 -m pip install -r requirements.txt pyinstaller
+          arch -x86_64 pyinstaller --windowed --name png_bmp_converter converter_gui.py
+          mv dist/png_bmp_converter.app dist/png_bmp_converter-x86.app
+
+      - name: Create universal binary (.app)
+        run: |
+          set -e
+          ARM_APP=dist/png_bmp_converter-arm.app
+          X86_APP=dist/png_bmp_converter-x86.app
+          U_APP=dist/png_bmp_converter.app
+          # Copy ARM app as base
+          cp -R "$ARM_APP" "$U_APP"
+          ARM_BIN="$ARM_APP/Contents/MacOS/png_bmp_converter"
+          X86_BIN="$X86_APP/Contents/MacOS/png_bmp_converter"
+          U_BIN="$U_APP/Contents/MacOS/png_bmp_converter"
+          # Create universal binary combining both architectures
+          lipo -create -output "$U_BIN" "$ARM_BIN" "$X86_BIN"
+          chmod +x "$U_BIN"
+
+      - name: Upload macOS universal artifact
         uses: actions/upload-artifact@v4
         with:
-          name: png_bmp_converter-macos
+          name: png_bmp_converter-macos-universal
           path: dist/png_bmp_converter.app

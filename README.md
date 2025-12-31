@@ -25,7 +25,29 @@ pyinstaller --onefile --windowed --name png_bmp_converter converter_gui.py
 
 ```bash
 # 为 macOS 生成一个 `.app` 应用包（这样从 Finder 启动不会打开终端窗口）
+如果你使用的是 Apple Silicon（M1/M2 等），为了兼容 Intel 与 Apple Silicon，我们在 CI 中构建了一个 universal `.app`（包含 arm64 与 x86_64 架构）。
+
+在本地生成 universal `.app` 的示例命令（需要在一台 macOS 机器上分别生成两个架构的构建并用 `lipo` 合并）：
+
+```bash
+# 1) 原生 ARM 构建（在 Apple Silicon 上运行）：
+python3 -m pip install -r requirements.txt pyinstaller
 pyinstaller --windowed --name png_bmp_converter converter_gui.py
+mv dist/png_bmp_converter.app dist/png_bmp_converter-arm.app
+
+# 2) 在 Rosetta 下做 x86_64 构建（Apple Silicon 上同样可以使用 Rosetta）：
+softwareupdate --install-rosetta --agree-to-license
+arch -x86_64 python3 -m pip install -r requirements.txt pyinstaller
+arch -x86_64 pyinstaller --windowed --name png_bmp_converter converter_gui.py
+mv dist/png_bmp_converter.app dist/png_bmp_converter-x86.app
+
+# 3) 合并为 universal .app
+cp -R dist/png_bmp_converter-arm.app dist/png_bmp_converter.app
+lipo -create -output dist/png_bmp_converter.app/Contents/MacOS/png_bmp_converter \
+	dist/png_bmp_converter-arm.app/Contents/MacOS/png_bmp_converter \
+	dist/png_bmp_converter-x86.app/Contents/MacOS/png_bmp_converter
+chmod +x dist/png_bmp_converter.app/Contents/MacOS/png_bmp_converter
+```
 ```
 
 说明：
