@@ -1,5 +1,8 @@
 name: Build cross-platform executables
 
+permissions:
+  contents: write
+
 on:
   push:
     branches: [ main ]
@@ -38,52 +41,69 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
-      - name: Install Rosetta (for x86_64 build)
+      - name: Build Apple Silicon (.app) only
         run: |
-          sudo softwareupdate --install-rosetta --agree-to-license || true
-
-      - name: Build ARM64 .app (native)
-        run: |
+          # Build only for Apple Silicon (ARM64) to avoid multi-arch conflicts
           python3 -m venv build/venv_arm
           . build/venv_arm/bin/activate
           python3 -m pip install --upgrade pip
           pip install -r requirements.txt pyinstaller
-          # Use venv's pyinstaller to produce ARM64 app in isolated dist/work dirs
+          # Produce .app in isolated dist/work directories
           build/venv_arm/bin/pyinstaller --windowed --name png_bmp_converter --clean -y \
-            --distpath dist/arm --workpath build/arm --specpath build/arm_spec \
+            --distpath dist --workpath build/arm --specpath build/arm_spec \
             converter_gui.py
-          mv dist/arm/png_bmp_converter.app dist/png_bmp_converter-arm.app
-
-      - name: Build x86_64 .app (Rosetta)
-        run: |
-          # Create an x86_64 venv using Rosetta and install x86_64 wheels into it
-          arch -x86_64 python3 -m venv build/venv_x86
-          # Use the venv's pip (run under Rosetta) to install correct-arch wheels
-          arch -x86_64 build/venv_x86/bin/python -m pip install --upgrade pip
-          arch -x86_64 build/venv_x86/bin/pip install -r requirements.txt pyinstaller
-          # Use the venv's pyinstaller (Rosetta/x86) to produce x86_64 app in isolated dirs
-          arch -x86_64 build/venv_x86/bin/pyinstaller --windowed --name png_bmp_converter --clean -y \
-            --distpath dist/x86 --workpath build/x86 --specpath build/x86_spec \
-            converter_gui.py
-          mv dist/x86/png_bmp_converter.app dist/png_bmp_converter-x86.app
-
-      - name: Create universal binary (.app)
-        run: |
-          set -e
-          ARM_APP=dist/png_bmp_converter-arm.app
-          X86_APP=dist/png_bmp_converter-x86.app
-          U_APP=dist/png_bmp_converter.app
-          # Copy ARM app as base
-          cp -R "$ARM_APP" "$U_APP"
-          ARM_BIN="$ARM_APP/Contents/MacOS/png_bmp_converter"
-          X86_BIN="$X86_APP/Contents/MacOS/png_bmp_converter"
-          U_BIN="$U_APP/Contents/MacOS/png_bmp_converter"
-          # Create universal binary combining both architectures
-          lipo -create -output "$U_BIN" "$ARM_BIN" "$X86_BIN"
-          chmod +x "$U_BIN"
-
-      - name: Upload macOS universal artifact
+      - name: Upload macOS ARM artifact
         uses: actions/upload-artifact@v4
         with:
-          name: png_bmp_converter-macos-universal
+          name: png_bmp_converter-macos-arm
           path: dist/png_bmp_converter.app
+
+  publish-release:
+    name: Publish Release
+    needs: [build-windows, build-macos]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: png_bmp_converter-windows
+      - name: Download macOS artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: png_bmp_converter-macos-arm
+      - name: Create GitHub Release
+        id: create_release
+        uses: actions/create-release@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag_name: v${{ github.run_number }}
+          release_name: png_bmp_converter-${{ github.run_number }}
+          draft: false
+          prerelease: false
+      - name: Upload Windows asset
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./png_bmp_converter-windows/png_bmp_converter.exe
+          asset_name: png_bmp_converter-windows.exe
+          asset_content_type: application/octet-stream
+      - name: Package macOS .app as ZIP
+        run: |
+          set -e
+          if [ -d "./png_bmp_converter-macos-arm/png_bmp_converter.app" ]; then
+            zip -r png_bmp_converter-macos-arm.zip png_bmp_converter-macos-arm/png_bmp_converter.app
+          elif [ -d "./png_bmp_converter-macos-arm/dist/png_bmp_converter.app" ]; then
+            zip -r png_bmp_converter-macos-arm.zip png_bmp_converter-macos-arm/dist/png_bmp_converter.app
+          else
+            echo "mac .app not found"
+            ls -la
+            exit 1
+          fi
+      - name: Upload macOS asset to release
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./png_bmp_converter-macos-arm.zip
+          asset_name: png_bmp_converter-macos-arm.zip
+          asset_content_type: application/zip
