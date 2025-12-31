@@ -181,3 +181,186 @@ PY
           asset_path: ./png_bmp_converter-macos-arm.zip
           asset_name: png_bmp_converter-macos-arm.zip
           asset_content_type: application/zip
+name: Build cross-platform executables
+
+permissions:
+  contents: write
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch: {}
+
+jobs:
+  build-windows:
+    name: Build Windows EXE
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+      - name: Build with PyInstaller (Windows)
+        run: |
+          pyinstaller --onefile --windowed --name png_bmp_converter converter_gui.py
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: png_bmp_converter-windows
+          path: dist/png_bmp_converter.exe
+
+  build-macos:
+    name: Build macOS binary
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Build Apple Silicon (.app) only
+        run: |
+          # Build only for Apple Silicon (ARM64) to avoid multi-arch conflicts
+          python3 -m venv build/venv_arm
+          . build/venv_arm/bin/activate
+          python3 -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller
+          # Produce .app in isolated dist/work directories
+          build/venv_arm/bin/pyinstaller --windowed --name png_bmp_converter --clean -y \
+            --distpath dist --workpath build/arm --specpath build/arm_spec \
+            converter_gui.py
+      - name: Fix permissions and sign macOS app
+        run: |
+          # Make executable
+          chmod +x dist/png_bmp_converter.app/Contents/MacOS/png_bmp_converter
+          
+          # Create a self-signed certificate for ad-hoc code signing
+          # This allows the app to run on the user's Mac without requiring a valid Apple Developer ID
+          /usr/bin/codesign --force --deep --sign - dist/png_bmp_converter.app
+          # Strip the main executable and bundled dylibs to reduce size (runs on macOS runner)
+          if command -v strip >/dev/null 2>&1; then
+            strip -x dist/png_bmp_converter.app/Contents/MacOS/png_bmp_converter || true
+            find dist/png_bmp_converter.app/Contents/Frameworks -type f -name '*.dylib' -print0 | xargs -0 -r strip -x || true
+          fi
+      - name: Upload macOS ARM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: png_bmp_converter-macos-arm
+          path: dist/png_bmp_converter.app
+
+  publish-release:
+    name: Publish Release
+    needs: [build-windows, build-macos]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: png_bmp_converter-windows
+          path: ./windows-artifact
+      - name: Download macOS artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: png_bmp_converter-macos-arm
+          path: ./macos-artifact
+      - name: Create GitHub Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ github.run_number }}
+          release_name: png_bmp_converter-${{ github.run_number }}
+          draft: false
+          prerelease: false
+      - name: Upload Windows asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./windows-artifact/png_bmp_converter.exe
+          asset_name: png_bmp_converter-windows.exe
+          asset_content_type: application/octet-stream
+      - name: Package macOS .app as ZIP
+        run: |
+          set -e
+          cd ./macos-artifact
+          # Check if Contents directory exists (unwrapped .app structure)
+          if [ -d "Contents" ]; then
+            # Need to reconstruct the .app directory structure
+            mkdir -p png_bmp_converter.app
+            mv Contents png_bmp_converter.app/
+          elif [ -d "png_bmp_converter.app" ]; then
+            # Already has correct structure
+            true
+          else
+            echo "mac .app not found"
+            ls -la
+            exit 1
+          fi
+          # Ensure the bundled executable has execute permission (artifacts may lose exec bit during transfer)
+          if [ -f "png_bmp_converter.app/Contents/MacOS/png_bmp_converter" ]; then
+            chmod +x png_bmp_converter.app/Contents/MacOS/png_bmp_converter
+          fi
+          # Log sizes before pruning
+          echo 'Sizes before pruning:'
+          du -sh png_bmp_converter.app || true
+          du -sh png_bmp_converter.app/Contents/* | sort -h || true
+
+          # Prune Qt translations and non-essential plugins to reduce bundle size
+          APP="png_bmp_converter.app"
+          BASE="$PWD/$APP/Contents"
+
+          # Remove Qt translations (many language files)
+          rm -rf "$BASE/Resources/PySide6/Qt/translations" || true
+
+          # Remove Qt QML/Quick and other large frameworks if present and not required by the app.
+          # Widgets-only apps typically do not need QtQml/QtQuick/QtPdf frameworks/plugins.
+          rm -rf "$BASE/Frameworks/QtQuick" || true
+          rm -rf "$BASE/Frameworks/QtQml" || true
+          rm -rf "$BASE/Frameworks/QtPdf" || true
+
+          # Remove plugins except platforms (keep platforms/libqcocoa for macOS)
+          if [ -d "$BASE/Resources/PySide6/Qt/plugins" ]; then
+            find "$BASE/Resources/PySide6/Qt/plugins" -mindepth 1 -maxdepth 1 ! -name platforms -exec rm -rf {} + || true
+            # remove imageformats if Pillow handles images (we use Pillow)
+            rm -rf "$BASE/Resources/PySide6/Qt/plugins/imageformats" || true
+          fi
+
+          # Log sizes after pruning
+          echo 'Sizes after pruning:'
+          du -sh png_bmp_converter.app || true
+          du -sh png_bmp_converter.app/Contents/* | sort -h || true
+
+          cd ..
+          zip -r png_bmp_converter-macos-arm.zip macos-artifact/png_bmp_converter.app
+          # Ensure the executable bit is stored inside the zip for the bundled binary
+          python3 - <<'PY'
+import zipfile, os
+src = 'png_bmp_converter-macos-arm.zip'
+tmp = src + '.tmp'
+with zipfile.ZipFile(src, 'r') as zin, zipfile.ZipFile(tmp, 'w', compression=zipfile.ZIP_DEFLATED) as zout:
+    for zi in zin.infolist():
+        data = zin.read(zi.filename)
+        if zi.filename.endswith('Contents/MacOS/png_bmp_converter'):
+            zi.external_attr = (0o100755 << 16)
+        zout.writestr(zi, data)
+os.replace(tmp, src)
+PY
+      - name: Upload macOS asset to release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./png_bmp_converter-macos-arm.zip
+          asset_name: png_bmp_converter-macos-arm.zip
+          asset_content_type: application/zip
