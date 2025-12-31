@@ -52,6 +52,14 @@ jobs:
           build/venv_arm/bin/pyinstaller --windowed --name png_bmp_converter --clean -y \
             --distpath dist --workpath build/arm --specpath build/arm_spec \
             converter_gui.py
+      - name: Fix permissions and sign macOS app
+        run: |
+          # Make executable
+          chmod +x dist/png_bmp_converter.app/Contents/MacOS/png_bmp_converter
+          
+          # Create a self-signed certificate for ad-hoc code signing
+          # This allows the app to run on the user's Mac without requiring a valid Apple Developer ID
+          /usr/bin/codesign --force --deep --sign - dist/png_bmp_converter.app
       - name: Upload macOS ARM artifact
         uses: actions/upload-artifact@v4
         with:
