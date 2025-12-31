@@ -68,10 +68,12 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: png_bmp_converter-windows
+          path: ./windows-artifact
       - name: Download macOS artifact
         uses: actions/download-artifact@v4
         with:
           name: png_bmp_converter-macos-arm
+          path: ./macos-artifact
       - name: Create GitHub Release
         id: create_release
         uses: actions/create-release@v1
@@ -88,7 +90,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./png_bmp_converter-windows/png_bmp_converter.exe
+          asset_path: ./windows-artifact/png_bmp_converter.exe
           asset_name: png_bmp_converter-windows.exe
           asset_content_type: application/octet-stream
       - name: Package macOS .app as ZIP
@@ -96,11 +98,9 @@ jobs:
           set -e
           if [ -d "./png_bmp_converter-macos-arm/png_bmp_converter.app" ]; then
             zip -r png_bmp_converter-macos-arm.zip png_bmp_converter-macos-arm/png_bmp_converter.app
-          elif [ -d "./png_bmp_converter-macos-arm/dist/png_bmp_converter.app" ]; then
-            zip -r png_bmp_converter-macos-arm.zip png_bmp_converter-macos-arm/dist/png_bmp_converter.app
           else
-            echo "mac .app not found"
-            ls -la
+            echo "mac .app not found in ./macos-artifact"
+            ls -la macos-artifact/
             exit 1
           fi
       - name: Upload macOS asset to release
