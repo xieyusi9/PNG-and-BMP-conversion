@@ -46,6 +46,22 @@ pyinstaller --onefile --windowed --name png_bmp_converter converter_gui.py
 
 ```bash
 pyinstaller --windowed --name png_bmp_converter converter_gui.py
+
+生成的可执行程序位于 `dist/png_bmp_converter.app`。
+
+## 下载和运行预编译版本
+
+访问 [GitHub Releases](https://github.com/xieyusi9/PNG-and-BMP-conversion/releases) 下载最新版本：
+
+- **Windows**: 下载 `.exe` 文件，直接双击运行
+- **macOS**: 下载 `.zip` 文件，解压后双击 `png_bmp_converter.app` 运行
+	- 首次运行时，如果 macOS 提示"无法打开"，请右击应用 → 选择"打开" → 点击"打开"确认即可
+	- 或在终端运行：`open -a /path/to/png_bmp_converter.app`
+
+## 关于 macOS 代码签名
+
+应用已通过自签名证书进行签名，允许在任何 macOS 系统上运行，无需 Apple Developer ID。
+如果仍遇到 Gatekeeper 警告，可在"系统设置" → "安全性与隐私" → "仍然打开"，或直接在终端中运行该应用。
 ```
 
 生成的应用包位于 `dist/png_bmp_converter.app`。
