@@ -75,14 +75,17 @@ jobs:
       - name: Create GitHub Release
         id: create_release
         uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
           tag_name: v${{ github.run_number }}
           release_name: png_bmp_converter-${{ github.run_number }}
           draft: false
           prerelease: false
       - name: Upload Windows asset
         uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: ./png_bmp_converter-windows/png_bmp_converter.exe
@@ -102,6 +105,8 @@ jobs:
           fi
       - name: Upload macOS asset to release
         uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: ./png_bmp_converter-macos-arm.zip
