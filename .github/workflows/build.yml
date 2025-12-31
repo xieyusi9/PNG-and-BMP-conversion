@@ -63,7 +63,7 @@ jobs:
           # Strip the main executable and bundled dylibs to reduce size (runs on macOS runner)
           if command -v strip >/dev/null 2>&1; then
             strip -x dist/png_bmp_converter.app/Contents/MacOS/png_bmp_converter || true
-            find dist/png_bmp_converter.app/Contents/Frameworks -type f -name '\*.dylib' -print0 | xargs -0 -r strip -x || true
+            find dist/png_bmp_converter.app/Contents/Frameworks -type f -name '*.dylib' -print0 | xargs -0 -r strip -x || true
           fi
       - name: Upload macOS ARM artifact
         uses: actions/upload-artifact@v4
@@ -159,19 +159,19 @@ jobs:
 
           cd ..
           zip -r png_bmp_converter-macos-arm.zip macos-artifact/png_bmp_converter.app
-            # Ensure the executable bit is stored inside the zip for the bundled binary
-            python3 - <<'PY'
-      import zipfile, os
-      src = 'png_bmp_converter-macos-arm.zip'
-      tmp = src + '.tmp'
-      with zipfile.ZipFile(src, 'r') as zin, zipfile.ZipFile(tmp, 'w', compression=zipfile.ZIP_DEFLATED) as zout:
-        for zi in zin.infolist():
-          data = zin.read(zi.filename)
-          if zi.filename.endswith('Contents/MacOS/png_bmp_converter'):
+          # Ensure the executable bit is stored inside the zip for the bundled binary
+          python3 - <<'PY'
+import zipfile, os
+src = 'png_bmp_converter-macos-arm.zip'
+tmp = src + '.tmp'
+with zipfile.ZipFile(src, 'r') as zin, zipfile.ZipFile(tmp, 'w', compression=zipfile.ZIP_DEFLATED) as zout:
+    for zi in zin.infolist():
+        data = zin.read(zi.filename)
+        if zi.filename.endswith('Contents/MacOS/png_bmp_converter'):
             zi.external_attr = (0o100755 << 16)
-          zout.writestr(zi, data)
-      os.replace(tmp, src)
-      PY
+        zout.writestr(zi, data)
+os.replace(tmp, src)
+PY
       - name: Upload macOS asset to release
         uses: actions/upload-release-asset@v1
         env:
