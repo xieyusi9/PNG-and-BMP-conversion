@@ -46,16 +46,20 @@ jobs:
         run: |
           python3 -m pip install --upgrade pip
           python3 -m pip install -r requirements.txt pyinstaller
-          pyinstaller --windowed --name png_bmp_converter converter_gui.py
-          mv dist/png_bmp_converter.app dist/png_bmp_converter-arm.app
+          pyinstaller --windowed --name png_bmp_converter --clean -y \
+            --distpath dist/arm --workpath build/arm --specpath build/arm_spec \
+            converter_gui.py
+          mv dist/arm/png_bmp_converter.app dist/png_bmp_converter-arm.app
 
       - name: Build x86_64 .app (Rosetta)
         run: |
           # Use Rosetta translation to run pip/pyinstaller in x86_64 mode and produce x86 binary
           arch -x86_64 python3 -m pip install --upgrade pip
           arch -x86_64 python3 -m pip install -r requirements.txt pyinstaller
-          arch -x86_64 pyinstaller --windowed --name png_bmp_converter converter_gui.py
-          mv dist/png_bmp_converter.app dist/png_bmp_converter-x86.app
+          arch -x86_64 pyinstaller --windowed --name png_bmp_converter --clean -y \
+            --distpath dist/x86 --workpath build/x86 --specpath build/x86_spec \
+            converter_gui.py
+          mv dist/x86/png_bmp_converter.app dist/png_bmp_converter-x86.app
 
       - name: Create universal binary (.app)
         run: |
