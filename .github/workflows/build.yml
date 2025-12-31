@@ -118,6 +118,10 @@ jobs:
             ls -la
             exit 1
           fi
+          # Ensure the bundled executable has execute permission (artifacts may lose exec bit during transfer)
+          if [ -f "png_bmp_converter.app/Contents/MacOS/png_bmp_converter" ]; then
+            chmod +x png_bmp_converter.app/Contents/MacOS/png_bmp_converter
+          fi
           cd ..
           zip -r png_bmp_converter-macos-arm.zip macos-artifact/png_bmp_converter.app
       - name: Upload macOS asset to release
