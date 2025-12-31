@@ -45,9 +45,10 @@ jobs:
           pip3 install pyinstaller
       - name: Build with PyInstaller (macOS)
         run: |
-          pyinstaller --onefile --windowed --name png_bmp_converter converter_gui.py
+          # Build an macOS .app bundle (windowed) to avoid spawning a Terminal window when launched
+          pyinstaller --windowed --name png_bmp_converter converter_gui.py
       - name: Upload macOS artifact
         uses: actions/upload-artifact@v4
         with:
           name: png_bmp_converter-macos
-          path: dist/png_bmp_converter
+          path: dist/png_bmp_converter.app

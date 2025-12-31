@@ -20,15 +20,17 @@ python3 converter_gui.py
 pyinstaller --onefile --windowed --name png_bmp_converter converter_gui.py
 ```
 
+
 - macOS (在 macOS 上运行)：
 
 ```bash
-pyinstaller --onefile --windowed --name png_bmp_converter converter_gui.py
+# 为 macOS 生成一个 `.app` 应用包（这样从 Finder 启动不会打开终端窗口）
+pyinstaller --windowed --name png_bmp_converter converter_gui.py
 ```
 
 说明：
-- 打包后会在 `dist/` 目录里生成可执行文件，Windows 为 `.exe`，macOS 为可执行二进制（macOS 可能需要 codesign 以及允许运行的权限设置）。
-- 若要使用自定义图标，请添加 `--icon=youricon.ico`（Windows）或 `.icns`（macOS）。
+- 打包后会在 `dist/` 目录里生成可执行文件：Windows 为 `dist/png_bmp_converter.exe`，macOS 为应用包 `dist/png_bmp_converter.app`（macOS 可能需要 codesign 以及允许运行的权限设置）。
+- 若要使用自定义图标，请添加 `--icon=youricon.ico`（Windows）或 `--icon=youricon.icns`（macOS）。
 
 依赖请参见 `requirements.txt`。
 
