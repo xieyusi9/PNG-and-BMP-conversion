@@ -24,9 +24,15 @@ jobs:
           pip install -r requirements.txt
           pip install pyinstaller
           choco install upx -y
+          # Check UPX installation
+          where upx
+          upx --version
       - name: Build with PyInstaller (Windows) with UPX compression
         run: |
-          pyinstaller --onefile --windowed --name png_bmp_converter --upx-dir "C:\Program Files (x86)\upx" --upx-exclude "vcruntime140.dll" --upx-exclude "msvcp140.dll" --upx-exclude "python311.dll" --upx-exclude "ucrtbase.dll" --clean -y converter_gui.py
+          # Find UPX path automatically
+          $upxExe = (where upx)
+          $upxPath = Split-Path -Parent $upxExe
+          pyinstaller --onefile --windowed --name png_bmp_converter --upx-dir "$upxPath" --upx-exclude "vcruntime140.dll" --upx-exclude "msvcp140.dll" --upx-exclude "python311.dll" --upx-exclude "ucrtbase.dll" --clean -y --log-level DEBUG converter_gui.py
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
         with:
@@ -45,6 +51,9 @@ jobs:
       - name: Install UPX on macOS
         run: |
           brew install upx
+          # Check UPX installation
+          which upx
+          upx --version
       - name: Build Apple Silicon (.app) only with UPX compression
         run: |
           # Build only for Apple Silicon (ARM64) to avoid multi-arch conflicts
@@ -56,6 +65,7 @@ jobs:
           build/venv_arm/bin/pyinstaller --windowed --name png_bmp_converter --clean -y \
             --distpath dist --workpath build/arm --specpath build/arm_spec \
             --upx-dir /usr/local/bin \
+            --log-level DEBUG \
             converter_gui.py
       - name: Fix permissions and sign macOS app
         run: |
