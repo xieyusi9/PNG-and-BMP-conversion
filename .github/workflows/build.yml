@@ -26,6 +26,7 @@ jobs:
           pip install pyinstaller
 
       - name: Build with PyInstaller (Windows) without UPX
+        shell: bash  # <--- 关键修改：指定使用 Bash，从而支持 \ 换行符
         run: |
           # 核心优化：使用 exclude-module 剔除不必要的庞大模块
           # 如果你的应用不需要联网或高级UI，排除 QtNetwork/QtQml/QtQuick 极其有效
