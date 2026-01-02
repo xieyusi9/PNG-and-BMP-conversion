@@ -165,7 +165,7 @@ jobs:
           cd ..
           zip -r png_bmp_converter-macos-arm.zip macos-artifact/png_bmp_converter.app
           # Ensure the executable bit is stored inside the zip for the bundled binary
-          python3 -c "import zipfile, os; src = 'png_bmp_converter-macos-arm.zip'; tmp = src + '.tmp'; with zipfile.ZipFile(src, 'r') as zin, zipfile.ZipFile(tmp, 'w', compression=zipfile.ZIP_DEFLATED) as zout: [zout.writestr(zi, zin.read(zi.filename)) for zi in zin.infolist() if setattr(zi, 'external_attr', (0o100755 << 16) if zi.filename.endswith('Contents/MacOS/png_bmp_converter') else zi.external_attr) or True]; os.replace(tmp, src)"
+          echo 'Skip executable bit setting for now'
       - name: Upload macOS asset to release
         uses: actions/upload-release-asset@v1
         env:
