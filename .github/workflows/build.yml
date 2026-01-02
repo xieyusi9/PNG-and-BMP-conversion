@@ -18,19 +18,31 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
-      - name: Install dependencies and UPX
+      
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pyinstaller
-          choco install upx -y
-          # Check UPX installation
-          where upx
-          upx --version
-      - name: Build with PyInstaller (Windows) with UPX compression
+
+      - name: Build with PyInstaller (Windows) without UPX
         run: |
-          # Use direct path for UPX since choco installs it to a standard location
-          pyinstaller --onefile --windowed --name png_bmp_converter --upx-dir "C:\Program Files (x86)\upx" --upx-exclude "vcruntime140.dll" --upx-exclude "msvcp140.dll" --upx-exclude "python311.dll" --upx-exclude "ucrtbase.dll" --clean -y --log-level DEBUG converter_gui.py
+          # 核心优化：使用 exclude-module 剔除不必要的庞大模块
+          # 如果你的应用不需要联网或高级UI，排除 QtNetwork/QtQml/QtQuick 极其有效
+          pyinstaller --onefile --windowed --name png_bmp_converter \
+            --exclude-module tkinter \
+            --exclude-module unittest \
+            --exclude-module email \
+            --exclude-module http \
+            --exclude-module xml \
+            --exclude-module pydoc \
+            --exclude-module PySide6.QtQml \
+            --exclude-module PySide6.QtQuick \
+            --exclude-module PySide6.QtNetwork \
+            --exclude-module PySide6.QtWebEngineCore \
+            --exclude-module PySide6.QtSql \
+            --clean -y --log-level INFO converter_gui.py
+
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
         with:
@@ -46,38 +58,41 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
-      - name: Install UPX on macOS
+      
+      # 移除 UPX 安装步骤，因为它在 macOS 上经常破坏签名
+      
+      - name: Build Apple Silicon (.app)
         run: |
-          brew install upx
-          # Check UPX installation
-          which upx
-          upx --version
-      - name: Build Apple Silicon (.app) only with UPX compression
-        run: |
-          # Build only for Apple Silicon (ARM64) to avoid multi-arch conflicts
           python3 -m venv build/venv_arm
           . build/venv_arm/bin/activate
           python3 -m pip install --upgrade pip
           pip install -r requirements.txt pyinstaller
-          # Produce .app in isolated dist/work directories
+          
+          # 同样应用 exclude-module 策略
           build/venv_arm/bin/pyinstaller --windowed --name png_bmp_converter --clean -y \
             --distpath dist --workpath build/arm --specpath build/arm_spec \
-            --upx-dir /usr/local/bin \
-            --log-level DEBUG \
+            --exclude-module tkinter \
+            --exclude-module unittest \
+            --exclude-module PySide6.QtQml \
+            --exclude-module PySide6.QtQuick \
+            --exclude-module PySide6.QtNetwork \
+            --exclude-module PySide6.QtWebEngineCore \
+            --log-level INFO \
             converter_gui.py
+
       - name: Fix permissions and sign macOS app
         run: |
-          # Make executable
           chmod +x dist/png_bmp_converter.app/Contents/MacOS/png_bmp_converter
           
-          # Create a self-signed certificate for ad-hoc code signing
-          # This allows the app to run on the user's Mac without requiring a valid Apple Developer ID
+          # 临时签名
           /usr/bin/codesign --force --deep --sign - dist/png_bmp_converter.app
-          # Strip the main executable and bundled dylibs to reduce size (runs on macOS runner)
+          
+          # 使用系统自带的 strip 命令代替 UPX，安全地移除调试符号
           if command -v strip >/dev/null 2>&1; then
             strip -x dist/png_bmp_converter.app/Contents/MacOS/png_bmp_converter || true
             find dist/png_bmp_converter.app/Contents/Frameworks -type f -name '*.dylib' -print0 | xargs -0 -r strip -x || true
           fi
+
       - name: Upload macOS ARM artifact
         uses: actions/upload-artifact@v4
         with:
@@ -90,71 +105,46 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      
       - name: Download Windows artifact
         uses: actions/download-artifact@v4
         with:
           name: png_bmp_converter-windows
           path: ./windows-artifact
+
       - name: Download macOS artifact
         uses: actions/download-artifact@v4
         with:
           name: png_bmp_converter-macos-arm
           path: ./macos-artifact
+
       - name: Package macOS .app as ZIP
         run: |
           set -e
           cd ./macos-artifact
-          # Check if Contents directory exists (unwrapped .app structure)
           if [ -d "Contents" ]; then
-            # Need to reconstruct the .app directory structure
             mkdir -p png_bmp_converter.app
             mv Contents png_bmp_converter.app/
-          elif [ -d "png_bmp_converter.app" ]; then
-            # Already has correct structure
-            true
-          else
-            echo "mac .app not found"
-            ls -la
-            exit 1
           fi
-          # Ensure the bundled executable has execute permission (artifacts may lose exec bit during transfer)
-          if [ -f "png_bmp_converter.app/Contents/MacOS/png_bmp_converter" ]; then
-            chmod +x png_bmp_converter.app/Contents/MacOS/png_bmp_converter
-          fi
-          # Log sizes before pruning
-          echo 'Sizes before pruning:'
-          du -sh png_bmp_converter.app || true
-          du -sh png_bmp_converter.app/Contents/* | sort -h || true
+          
+          chmod +x png_bmp_converter.app/Contents/MacOS/png_bmp_converter
 
-          # Prune Qt translations and non-essential plugins to reduce bundle size
+          # 你原本的 Pruning 脚本非常好，继续保留
+          # 它是减小体积的主力
           APP="png_bmp_converter.app"
           BASE="$PWD/$APP/Contents"
-
-          # Remove Qt translations (many language files)
           rm -rf "$BASE/Resources/PySide6/Qt/translations" || true
-
-          # Remove Qt QML/Quick and other large frameworks if present and not required by the app.
-          # Widgets-only apps typically do not need QtQml/QtQuick/QtPdf frameworks/plugins.
           rm -rf "$BASE/Frameworks/QtQuick" || true
           rm -rf "$BASE/Frameworks/QtQml" || true
           rm -rf "$BASE/Frameworks/QtPdf" || true
-
-          # Remove plugins except platforms (keep platforms/libqcocoa for macOS)
           if [ -d "$BASE/Resources/PySide6/Qt/plugins" ]; then
             find "$BASE/Resources/PySide6/Qt/plugins" -mindepth 1 -maxdepth 1 ! -name platforms -exec rm -rf {} + || true
-            # remove imageformats if Pillow handles images (we use Pillow)
             rm -rf "$BASE/Resources/PySide6/Qt/plugins/imageformats" || true
           fi
 
-          # Log sizes after pruning
-          echo 'Sizes after pruning:'
-          du -sh png_bmp_converter.app || true
-          du -sh png_bmp_converter.app/Contents/* | sort -h || true
-
           cd ..
           zip -r png_bmp_converter-macos-arm.zip macos-artifact/png_bmp_converter.app
-          # Ensure the executable bit is stored inside the zip for the bundled binary
-          echo 'Skip executable bit setting for now'
+
       - name: Create and upload release with assets
         uses: softprops/action-gh-release@v1
         env:
