@@ -26,7 +26,7 @@ jobs:
           choco install upx -y
       - name: Build with PyInstaller (Windows) with UPX compression
         run: |
-          pyinstaller --onefile --windowed --name png_bmp_converter --upx-dir "C:\Program Files (x86)\upx" --upx-exclude "vcruntime140.dll" --upx-exclude "msvcp140.dll" --upx-exclude "python311.dll" --upx-exclude "ucrtbase.dll" --upx-exclude "Qt5Core.dll" --upx-exclude "Qt5Gui.dll" --upx-exclude "Qt5Widgets.dll" --upx-exclude "libEGL.dll" --upx-exclude "libGLESv2.dll" --clean -y converter_gui.py
+          pyinstaller --onefile --windowed --name png_bmp_converter --upx-dir "C:\Program Files (x86)\upx" --upx-exclude "vcruntime140.dll" --upx-exclude "msvcp140.dll" --upx-exclude "python311.dll" --upx-exclude "ucrtbase.dll" --clean -y converter_gui.py
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
         with:
@@ -56,8 +56,6 @@ jobs:
           build/venv_arm/bin/pyinstaller --windowed --name png_bmp_converter --clean -y \
             --distpath dist --workpath build/arm --specpath build/arm_spec \
             --upx-dir /usr/local/bin \
-            --upx-options="--best --lzma" \
-            --upx-exclude "libqcocoa.dylib" --upx-exclude "libQt5Core.dylib" --upx-exclude "libQt5Gui.dylib" --upx-exclude "libQt5Widgets.dylib" --upx-exclude "libQt5PrintSupport.dylib" --upx-exclude "libpng16.16.dylib" --upx-exclude "libz.1.dylib" \
             converter_gui.py
       - name: Fix permissions and sign macOS app
         run: |
