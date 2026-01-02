@@ -29,10 +29,8 @@ jobs:
           upx --version
       - name: Build with PyInstaller (Windows) with UPX compression
         run: |
-          # Find UPX path automatically
-          $upxExe = (where upx)
-          $upxPath = Split-Path -Parent $upxExe
-          pyinstaller --onefile --windowed --name png_bmp_converter --upx-dir "$upxPath" --upx-exclude "vcruntime140.dll" --upx-exclude "msvcp140.dll" --upx-exclude "python311.dll" --upx-exclude "ucrtbase.dll" --clean -y --log-level DEBUG converter_gui.py
+          # Use direct path for UPX since choco installs it to a standard location
+          pyinstaller --onefile --windowed --name png_bmp_converter --upx-dir "C:\Program Files (x86)\upx" --upx-exclude "vcruntime140.dll" --upx-exclude "msvcp140.dll" --upx-exclude "python311.dll" --upx-exclude "ucrtbase.dll" --clean -y --log-level DEBUG converter_gui.py
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
         with:
