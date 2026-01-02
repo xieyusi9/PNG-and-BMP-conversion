@@ -158,7 +158,7 @@ jobs:
           name: png_bmp_converter-${{ github.run_number }}
           draft: false
           prerelease: false
-          files:
-            - ./windows-artifact/png_bmp_converter.exe
-            - ./png_bmp_converter-macos-arm.zip
+          files: |
+            ./windows-artifact/png_bmp_converter.exe
+            ./png_bmp_converter-macos-arm.zip
           generate_release_notes: false
