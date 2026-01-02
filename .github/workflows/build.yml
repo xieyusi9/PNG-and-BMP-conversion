@@ -26,7 +26,7 @@ jobs:
           choco install upx -y
       - name: Build with PyInstaller (Windows) with UPX compression
         run: |
-          pyinstaller --onefile --windowed --name png_bmp_converter --upx-dir "C:\Program Files (x86)\upx" converter_gui.py
+          pyinstaller --onefile --windowed --name png_bmp_converter --upx-dir "C:\Program Files (x86)\upx" --upx-exclude "vcruntime140.dll" --upx-exclude "msvcp140.dll" --upx-exclude "python311.dll" --upx-exclude "ucrtbase.dll" --upx-exclude "Qt5Core.dll" --upx-exclude "Qt5Gui.dll" --upx-exclude "Qt5Widgets.dll" --upx-exclude "libEGL.dll" --upx-exclude "libGLESv2.dll" --clean -y converter_gui.py
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
         with:
@@ -56,6 +56,8 @@ jobs:
           build/venv_arm/bin/pyinstaller --windowed --name png_bmp_converter --clean -y \
             --distpath dist --workpath build/arm --specpath build/arm_spec \
             --upx-dir /usr/local/bin \
+            --upx-options="--best --lzma" \
+            --upx-exclude "libqcocoa.dylib" --upx-exclude "libQt5Core.dylib" --upx-exclude "libQt5Gui.dylib" --upx-exclude "libQt5Widgets.dylib" --upx-exclude "libQt5PrintSupport.dylib" --upx-exclude "libpng16.16.dylib" --upx-exclude "libz.1.dylib" \
             converter_gui.py
       - name: Fix permissions and sign macOS app
         run: |
@@ -92,25 +94,6 @@ jobs:
         with:
           name: png_bmp_converter-macos-arm
           path: ./macos-artifact
-      - name: Create GitHub Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: v${{ github.run_number }}
-          release_name: png_bmp_converter-${{ github.run_number }}
-          draft: false
-          prerelease: false
-      - name: Upload Windows asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./windows-artifact/png_bmp_converter.exe
-          asset_name: png_bmp_converter-windows.exe
-          asset_content_type: application/octet-stream
       - name: Package macOS .app as ZIP
         run: |
           set -e
@@ -166,12 +149,16 @@ jobs:
           zip -r png_bmp_converter-macos-arm.zip macos-artifact/png_bmp_converter.app
           # Ensure the executable bit is stored inside the zip for the bundled binary
           echo 'Skip executable bit setting for now'
-      - name: Upload macOS asset to release
-        uses: actions/upload-release-asset@v1
+      - name: Create and upload release with assets
+        uses: softprops/action-gh-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./png_bmp_converter-macos-arm.zip
-          asset_name: png_bmp_converter-macos-arm.zip
-          asset_content_type: application/zip
+          tag_name: v${{ github.run_number }}
+          name: png_bmp_converter-${{ github.run_number }}
+          draft: false
+          prerelease: false
+          files:
+            - ./windows-artifact/png_bmp_converter.exe
+            - ./png_bmp_converter-macos-arm.zip
+          generate_release_notes: false
